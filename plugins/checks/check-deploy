@@ -48,7 +48,6 @@ if [[ -z "$DOKKU_APP_CONTAINER_ID" ]] && [[ -f "$DOKKU_ROOT/$APP/CONTAINER" ]]; 
   DOKKU_APP_CONTAINER_ID=$(< "$DOKKU_ROOT/$APP/CONTAINER")
 fi
 
-
 # source in app env to get DOKKU_CHECKS_WAIT and any other necessary vars
 [[ -f "$DOKKU_ROOT/ENV" ]] && source $DOKKU_ROOT/ENV
 
@@ -166,19 +165,22 @@ do
       # OUTPUT contains the HTTP response
       if [[ ! "$OUTPUT" =~ $EXPECTED ]] ; then
         dokku_log_warn "$LOG_URL: expected to but did not find: \"$EXPECTED\""
-        #exit 1
-        UNCHECKED=$(expr $UNCHECKED + 1 )
-  
+  	dokku_log_fail "Non-Retryable matching Error"
       fi
     else
-      # Failed to connect/no response, OUTPUT contains error message
-      dokku_log_warn "$OUTPUT"
-      #exit 2
-      UNCHECKED=$(expr $UNCHECKED + 1 )
-    
+      CURL_RESULT=$?
+      if [ $CURL_RESULT -eq 7 ]; then
+        # retryable timeout
+        # Failed to connect/no response, OUTPUT contains error message
+        dokku_log_warn "$OUTPUT"
+        UNCHECKED=$(expr $UNCHECKED + 1 )
+      else
+        dokku_log_warn "$OUTPUT"
+        dokku_log_fail "Non Retryable CURL error $CURL_RESULT"
+      fi
     fi
   done
-  
+    
   if [ $UNCHECKED -gt 0 ]; then
       dokku_log_warn "Check attempt $i/$RETRIES failed.  Retrying..."
       continue;
